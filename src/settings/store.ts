@@ -31,7 +31,6 @@ export interface Settings {
   gaming: { mode: "off" | "fullscreen" | "on" };
   /** Dots like on iPhone: mic/camera (green) or screen recording (red) in use. */
   privacyDots: boolean;
-  language: "de" | "en";
   /** Temperature and clock format; picked from the Windows region on first start. */
   units: { temp: "c" | "f"; clock: "24" | "12" };
   /**
@@ -41,6 +40,8 @@ export interface Settings {
   presentation: { manual: boolean; auto: boolean };
   /** Check for a new version once a day, anonymously (installs only on click). */
   updates: { auto: boolean };
+  /** Global shortcut to start a Snap region screenshot (empty = disabled). */
+  snapShortcut: string;
 }
 
 /** All tool IDs in default order. Must match `src/notch/tabs.ts`. */
@@ -54,6 +55,8 @@ export const TOOL_IDS = [
   "convert",
   "weather",
   "system",
+  "vibe",
+  "card",
 ] as const;
 
 const DEFAULT_OFF = new Set<string>(["system"]);
@@ -67,10 +70,10 @@ const defaults: Settings = {
   display: { visibility: "always", monitor: null, offset: 0, focusStyle: "dim", idleStyle: "notch" },
   gaming: { mode: "off" },
   privacyDots: false,
-  language: "en",
   units: regionUnits(),
   presentation: { manual: false, auto: true },
   updates: { auto: true },
+  snapShortcut: "Ctrl+Alt+S",
 };
 
 /** °F and 12 h where the Windows region uses them (US & co.), otherwise °C and 24 h. */

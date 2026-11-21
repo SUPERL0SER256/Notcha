@@ -37,3 +37,11 @@ export const GpuIcon = make("GpuIcon", () => (
     <path d="M172 104h24M172 136h24M44 176v24M28 64h16" />
   </>
 ));
+
+/** Minimal smiley face: only eyes and a smile curve (no outer circle). */
+export const SmileyFaceIcon = make("SmileyFaceIcon", () => (
+  <>
+    <path d="M88 92v18M168 92v18" />
+    <path d="M68 152c16 28 40 40 60 40s44-12 60-40" />
+  </>
+));

@@ -1,11 +1,10 @@
 import { StrictMode } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { createRoot } from "react-dom/client";
 import { MotionConfig } from "motion/react";
 import "./styles/global.css";
 import { Notch } from "./notch/Notch";
 import { DesktopMock } from "./dev/DesktopMock";
-import { isNative } from "./platform/native";
+import { isNative, setSnapShortcut } from "./platform/native";
 import { startDropListener } from "./platform/drop";
 import { clipboard } from "./platform/clipboard";
 import { settings } from "./settings/store";
@@ -49,17 +48,9 @@ const syncClipboardMode = () => {
 syncClipboardMode();
 settings.subscribe(syncClipboardMode);
 
-// Language: update the tray menu in Rust and set the lang attribute.
-let lastLang = "";
-const applyLanguage = () => {
-  const { language } = settings.get();
-  if (language === lastLang) return;
-  lastLang = language;
-  document.documentElement.lang = language;
-  if (isNative) void invoke("set_language", { lang: language });
-};
-applyLanguage();
-settings.subscribe(applyLanguage);
+// Register the customizable Snap global shortcut on startup.
+void setSnapShortcut(settings.get().snapShortcut).catch(() => {});
+document.documentElement.lang = "en";
 
 // The notch isn't a web page: no browser context menu (except in text fields for
 // cut/paste) and in the app no browser shortcuts like reload or print.

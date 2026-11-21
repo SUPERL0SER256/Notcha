@@ -6,6 +6,7 @@ import {
   CloudSun,
   Cpu,
   GearSix,
+  ImageSquare,
   SquaresFour,
   MusicNotesSimple,
   NotePencil,
@@ -21,7 +22,10 @@ import { AskView } from "../features/ask/AskView";
 import { ConvertView } from "../features/convert/ConvertView";
 import { WeatherView } from "../features/weather/WeatherView";
 import { SystemView } from "../features/system/SystemView";
+import { VibeView } from "../features/vibe/VibeView";
+import { CardView } from "../features/vibe/CardView";
 import { SettingsView } from "../features/settings/SettingsView";
+import { SmileyFaceIcon } from "../ui/icons";
 
 /**
  * Registry of all tools in the open notch. New tool = new entry here
@@ -50,6 +54,8 @@ export const tabs: NotchTab[] = [
   { id: "convert", label: "Converter", icon: ArrowsLeftRight, size: { w: 520, h: 290 }, View: ConvertView },
   { id: "weather", label: "Wetter", icon: CloudSun, size: { w: 520, h: 250 }, View: WeatherView },
   { id: "system", label: "Hardware", icon: Cpu, size: { w: 600, h: 248 }, View: SystemView },
+  { id: "vibe", label: "Vibe", icon: ImageSquare, size: { w: 540, h: 256 }, View: VibeView },
+  { id: "card", label: "Persona", icon: SmileyFaceIcon, size: { w: 540, h: 244 }, View: CardView },
 ];
 
 /** Settings: reached via the gear, not in the tool bar. */

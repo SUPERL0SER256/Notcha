@@ -11,7 +11,6 @@ const SHOWCASE_TOOLS = ["overview", "media", "ask", "convert", "clipboard", "wea
  */
 export function startShowcase() {
   updateSettings((s) => ({
-    language: "en",
     openMode: "hover",
     hoverDelay: "normal",
     tools: [

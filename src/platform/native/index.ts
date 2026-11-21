@@ -36,6 +36,18 @@ export function onShortcut(handler: () => void): () => void {
   return () => void off.then((f) => f());
 }
 
+/** Global screenshot shortcut was pressed. */
+export function onSnapShortcut(handler: () => void): () => void {
+  if (!isNative) return () => {};
+  const off = listen("notch://snap", handler);
+  return () => void off.then((f) => f());
+}
+
+/** Registers (or clears if empty) the global screenshot shortcut in Rust. */
+export function setSnapShortcut(combo: string): Promise<void> {
+  return isNative ? invoke("set_snap_shortcut", { combo }) : Promise.resolve();
+}
+
 /** Tray: left click / "Open" (tab = null) or "Settings" (tab = "settings"). */
 export function onTrayOpen(handler: (tab: string | null) => void): () => void {
   if (!isNative) return () => {};

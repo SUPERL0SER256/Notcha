@@ -69,6 +69,25 @@ export const snap = {
     isNative ? invoke<string>("snap_save", { base64Png }) : Promise.resolve("C:\\Users\\Demo\\Pictures\\NotchaSnap\\snap.png"),
 };
 
+// ---------- Persona image (disk-backed in AppData) ----------
+
+let mockPersonaImage: string | null = null;
+
+export const personaImage = {
+  load: (): Promise<string | null> =>
+    isNative ? invoke<string | null>("persona_image_load") : Promise.resolve(mockPersonaImage),
+  save: (dataUrl: string): Promise<void> => {
+    if (isNative) return invoke("persona_image_save", { dataUrl });
+    mockPersonaImage = dataUrl;
+    return Promise.resolve();
+  },
+  clear: (): Promise<void> => {
+    if (isNative) return invoke("persona_image_clear");
+    mockPersonaImage = null;
+    return Promise.resolve();
+  },
+};
+
 // ---------- System ----------
 
 export interface SystemStats {

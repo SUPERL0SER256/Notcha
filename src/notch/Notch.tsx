@@ -3,7 +3,8 @@ import { AnimatePresence, motion, type Transition } from "motion/react";
 import { GearSix, PushPin, Selection } from "@phosphor-icons/react";
 import { content, springs } from "../design/motion";
 import { useNowPlaying } from "../platform/media";
-import { isNative, keyboardFocus, onNativeBlur, onNativeHover, onShortcut, onTrayOpen, setHitRect, setMemoryLow } from "../platform/native";
+import { isNative, keyboardFocus, onNativeBlur, onNativeHover, onShortcut, onSnapShortcut, onTrayOpen, setHitRect, setMemoryLow } from "../platform/native";
+import { captureRegionFromShortcut } from "../features/snap/SnapView";
 import { PrivacyDots } from "../features/privacy/PrivacyDots";
 import { FOCUS_CLICKS, focusMode, setFocusMode } from "./focus";
 import { useDragToMove } from "./drag";
@@ -110,6 +111,24 @@ export function Notch() {
 
   // Shortcut: opening takes focus (Esc, typing), closing gives it back.
   useEffect(() => onShortcut(() => toggle() === "open" && keyboardFocus(true)), [toggle]);
+  // Screenshot shortcut (customizable in Settings): always active, even when closed or in focus mode.
+  const statusForSnap = useRef(status);
+  statusForSnap.current = status;
+  useEffect(
+    () =>
+      onSnapShortcut(() => {
+        setMemoryLow(false);
+        void captureRegionFromShortcut().then((captured) => {
+          if (!captured) return;
+          if (focusMode.get()) setFocusMode(false);
+          trayTab.current = statusForSnap.current === "open" ? null : "snap";
+          navigate("snap");
+          open();
+          keyboardFocus(true);
+        });
+      }),
+    [open],
+  );
   useEffect(
     () =>
       onTrayOpen((tab) => {

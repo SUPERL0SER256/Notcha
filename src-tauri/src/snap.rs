@@ -8,13 +8,14 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use arboard::{Clipboard, ImageData};
 use base64::Engine;
 use serde::Serialize;
-use tauri::WebviewWindow;
+use tauri::{AppHandle, Manager, WebviewWindow};
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC, SelectObject,
     BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, SRCCOPY,
 };
 use windows::Win32::System::DataExchange::GetClipboardSequenceNumber;
-use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_ESCAPE};
+use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -109,27 +110,52 @@ pub async fn snap_capture_screen(window: WebviewWindow) -> Result<SnapResult, St
         .await
         .map_err(|e| e.to_string())?;
     let _ = window.show();
+    let _ = window.set_always_on_top(true);
     let _ = window.set_focus();
     res
 }
 
+fn foreground_is_snip_overlay() -> bool {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.0.is_null() {
+            return false;
+        }
+        let mut buf = [0u16; 128];
+        let len = GetClassNameW(hwnd, &mut buf) as usize;
+        if len == 0 {
+            return false;
+        }
+        let class = String::from_utf16_lossy(&buf[..len]);
+        class == "Windows.UI.Core.CoreWindow" || class == "Xaml_WindowedPopupClass" || class == "ApplicationFrameWindow"
+    }
+}
+
 /// Region snip: launches Windows' native Snipping Tool (`ms-screenclip:`) and waits
-/// for the user to select a region, then pulls the captured image from the clipboard.
+/// for the user to select a region (or cancel with Esc / Close), then restores the notch.
 #[tauri::command]
 pub async fn snap_capture_region(window: WebviewWindow) -> Result<Option<SnapResult>, String> {
     let before = unsafe { GetClipboardSequenceNumber() };
+    // Clear any prior Escape press latch before launching the snip overlay.
+    unsafe {
+        let _ = GetAsyncKeyState(VK_ESCAPE.0 as i32);
+    }
     let _ = window.hide();
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
-    Command::new("explorer")
-        .arg("ms-screenclip:")
-        .spawn()
-        .map_err(|e| format!("Snipping Tool startet nicht: {e}"))?;
+    if let Err(e) = Command::new("explorer").arg("ms-screenclip:").spawn() {
+        let _ = window.show();
+        return Err(format!("Snipping Tool startet nicht: {e}"));
+    }
 
     let result = tauri::async_runtime::spawn_blocking(move || -> Result<Option<SnapResult>, String> {
-        let deadline = Instant::now() + Duration::from_secs(30);
+        let started = Instant::now();
+        let deadline = started + Duration::from_secs(30);
+        let mut saw_overlay = false;
+        let mut overlay_gone_since: Option<Instant> = None;
+
         while Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(150));
+            std::thread::sleep(Duration::from_millis(80));
             let now = unsafe { GetClipboardSequenceNumber() };
             if now != before {
                 // Give Windows a moment to finish writing the DIB to the clipboard.
@@ -140,6 +166,31 @@ pub async fn snap_capture_region(window: WebviewWindow) -> Result<Option<SnapRes
                     }
                 }
             }
+
+            // Cancelled via Esc key.
+            let esc = unsafe { GetAsyncKeyState(VK_ESCAPE.0 as i32) as u16 };
+            if (esc & 0x8001) != 0 && started.elapsed() > Duration::from_millis(150) {
+                return Ok(None);
+            }
+
+            // Cancelled via the Snipping Tool close (X) button or clicking away.
+            if foreground_is_snip_overlay() {
+                saw_overlay = true;
+                overlay_gone_since = None;
+            } else if saw_overlay {
+                let gone_at = *overlay_gone_since.get_or_insert_with(Instant::now);
+                if gone_at.elapsed() >= Duration::from_millis(300) {
+                    // Final clipboard check in case the write landed right as the overlay closed.
+                    if unsafe { GetClipboardSequenceNumber() } != before {
+                        if let Ok(mut cb) = Clipboard::new() {
+                            if let Ok(img) = cb.get_image() {
+                                return encode_rgba_png(img.width as u32, img.height as u32, img.bytes.into_owned()).map(Some);
+                            }
+                        }
+                    }
+                    return Ok(None);
+                }
+            }
         }
         Ok(None)
     })
@@ -147,7 +198,10 @@ pub async fn snap_capture_region(window: WebviewWindow) -> Result<Option<SnapRes
     .map_err(|e| e.to_string())?;
 
     let _ = window.show();
-    let _ = window.set_focus();
+    let _ = window.set_always_on_top(true);
+    if matches!(result, Ok(Some(_))) {
+        let _ = window.set_focus();
+    }
     result
 }
 
@@ -200,6 +254,78 @@ pub async fn snap_save(base64_png: String) -> Result<String, String> {
         let path = dir.join(format!("snap-{ts}.png"));
         std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
         Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---------- Persona card image (disk-backed, 0 idle RAM when closed) ----------
+
+const PERSONA_EXTS: &[(&str, &str)] = &[
+    ("gif", "image/gif"),
+    ("jpg", "image/jpeg"),
+    ("png", "image/png"),
+    ("webp", "image/webp"),
+];
+
+fn clear_persona_files(dir: &PathBuf) {
+    for (ext, _) in PERSONA_EXTS {
+        let _ = std::fs::remove_file(dir.join(format!("persona.{ext}")));
+    }
+}
+
+/// Saves a `data:image/<mime>;base64,…` image to `%APPDATA%\app.notch.windows\persona.<ext>`.
+#[tauri::command]
+pub async fn persona_image_save(data_url: String, app: AppHandle) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (header, b64) = data_url.split_once(",").ok_or("Ungültiges Bildformat")?;
+        let ext = if header.contains("image/gif") {
+            "gif"
+        } else if header.contains("image/webp") {
+            "webp"
+        } else if header.contains("image/png") {
+            "png"
+        } else {
+            "jpg"
+        };
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        clear_persona_files(&dir);
+        std::fs::write(dir.join(format!("persona.{ext}")), bytes).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Loads the saved Persona image from disk only while the Persona panel is open.
+#[tauri::command]
+pub async fn persona_image_load(app: AppHandle) -> Result<Option<String>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        for (ext, mime) in PERSONA_EXTS {
+            let p = dir.join(format!("persona.{ext}"));
+            if p.exists() {
+                let bytes = std::fs::read(&p).map_err(|e| e.to_string())?;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                return Ok(Some(format!("data:{mime};base64,{b64}")));
+            }
+        }
+        Ok(None)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Deletes the saved Persona image from disk.
+#[tauri::command]
+pub async fn persona_image_clear(app: AppHandle) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        clear_persona_files(&dir);
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?

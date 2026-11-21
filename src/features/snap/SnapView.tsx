@@ -35,6 +35,23 @@ interface SnapState {
 
 const snapStore = createStore<SnapState>({ shot: null, messages: [], savedPath: null });
 
+let shortcutBusy = false;
+/** Initiates a region snip from anywhere (global shortcut Ctrl+Alt+S). Returns true if captured. */
+export async function captureRegionFromShortcut(): Promise<boolean> {
+  if (shortcutBusy) return false;
+  shortcutBusy = true;
+  try {
+    const res = await snap.captureRegion();
+    if (!res) return false;
+    snapStore.set({ shot: res, messages: [], savedPath: null });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    shortcutBusy = false;
+  }
+}
+
 const quickActions: { icon: Icon; label: string; prompt: string }[] = [
   { icon: Lightbulb, label: "Erklären", prompt: "Explain what is shown in this screenshot concisely and directly." },
   { icon: TextT, label: "Text kopieren", prompt: "Extract all visible text from this screenshot cleanly with no extra commentary." },

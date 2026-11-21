@@ -12,11 +12,13 @@ import {
   Sparkle,
   SquaresFour,
   SignOut,
+  X,
   type Icon,
 } from "@phosphor-icons/react";
 import { content, fade, springs } from "../../design/motion";
 import { nav } from "../../notch/nav";
 import { tabs } from "../../notch/tabs";
+import { setSnapShortcut } from "../../platform/native";
 import { autostart, display, openUrl, secrets, unlockFps, type ChangelogEntry, type MonitorInfo, type SecretName } from "../../platform/services";
 import { settings, updateSettings, type AskProvider } from "../../settings/store";
 import { Button, Group, Row, Segmented, Select, Switch, TextField } from "../../ui/controls";
@@ -28,7 +30,7 @@ import { focusMode, setFocusMode } from "../../notch/focus";
 import { checkForUpdate, installUpdate, update } from "../../lib/update";
 import { between, changelog, itemText, markSeen, useUnseen } from "../../lib/changelog";
 import { privacy, togglePresentation, usePresenting } from "../privacy/store";
-import { locale, t } from "../../i18n";
+import { locale, t, tBackend } from "../../i18n";
 
 type PageId = "general" | "display" | "tools" | "ai";
 
@@ -297,18 +299,6 @@ function General() {
 
   return (
     <Group>
-      <Row label={t("Sprache")}>
-        <Segmented
-          id="language"
-          size="sm"
-          value={s.language}
-          onChange={(language) => updateSettings({ language })}
-          options={[
-            { value: "de", label: "Deutsch" },
-            { value: "en", label: "English" },
-          ]}
-        />
-      </Row>
       <Row label={t("Uhrzeit")}>
         <Segmented
           id="clock-format"
@@ -372,7 +362,109 @@ function General() {
           ))}
         </span>
       </Row>
+      <SnapShortcutRow />
     </Group>
+  );
+}
+
+const MODIFIER_KEYS = new Set(["Control", "Alt", "Shift", "Meta"]);
+
+function keyFromEvent(e: KeyboardEvent): string | null {
+  if (MODIFIER_KEYS.has(e.key)) return null;
+  if (e.code.startsWith("Key")) return e.code.slice(3);
+  if (e.code.startsWith("Digit")) return e.code.slice(5);
+  if (/^F([1-9]|1[0-2])$/.test(e.code)) return e.code;
+  if (e.code === "Space") return "Space";
+  if (e.code === "PrintScreen") return "PrintScreen";
+  return null;
+}
+
+/** Interactive shortcut recorder for the global Snap screenshot trigger. */
+function SnapShortcutRow() {
+  const combo = settings.use().snapShortcut;
+  const [recording, setRecording] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecording(false);
+        return;
+      }
+      const key = keyFromEvent(e);
+      if (!key) return;
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push("Ctrl");
+      if (e.altKey) parts.push("Alt");
+      if (e.shiftKey) parts.push("Shift");
+      if (e.metaKey) parts.push("Super");
+      // Require at least one modifier unless it's a function key or PrintScreen.
+      if (parts.length === 0 && key !== "PrintScreen" && !key.startsWith("F")) return;
+      parts.push(key);
+      const next = parts.join("+");
+      setRecording(false);
+      setErr(null);
+      void setSnapShortcut(next)
+        .then(() => updateSettings({ snapShortcut: next }))
+        .catch((e) => setErr(tBackend(String(e))));
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording]);
+
+  const clear = () => {
+    setErr(null);
+    setRecording(false);
+    void setSnapShortcut("").then(() => updateSettings({ snapShortcut: "" }));
+  };
+
+  const chips = combo ? combo.split("+") : [];
+  const labelFor = (k: string) => (k === "Ctrl" ? t("Strg") : k === "Space" ? t("Leertaste") : k);
+
+  return (
+    <Row
+      label={t("Snap-Kürzel")}
+      hint={err ? <span className="text-orange">{err}</span> : t("Startet eine Bereichsaufnahme von überall")}
+    >
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setErr(null);
+            setRecording((r) => !r);
+          }}
+          className={`pressable flex h-7 items-center gap-1 rounded-[8px] px-2 text-caption transition-colors ${
+            recording ? "bg-label text-black font-medium" : "bg-fill-1 text-label-2 hover:bg-fill-2"
+          }`}
+        >
+          {recording ? (
+            t("Tasten drücken …")
+          ) : chips.length > 0 ? (
+            chips.map((k) => (
+              <kbd key={k} className="rounded-[5px] bg-fill-2 px-1.5 py-0.5 font-sans text-caption text-label">
+                {labelFor(k)}
+              </kbd>
+            ))
+          ) : (
+            <span className="text-label-3">{t("Aus")}</span>
+          )}
+        </button>
+        {combo && !recording && (
+          <button
+            type="button"
+            aria-label={t("Entfernen")}
+            title={t("Entfernen")}
+            onClick={clear}
+            className="pressable flex size-6 items-center justify-center rounded-full text-label-3 hover:bg-fill-2 hover:text-label"
+          >
+            <X size={12} weight="bold" />
+          </button>
+        )}
+      </div>
+    </Row>
   );
 }
 

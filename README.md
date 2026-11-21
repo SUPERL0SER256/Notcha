@@ -31,6 +31,8 @@ Built with **Tauri 2, Rust, React 19, TypeScript, Motion, and Tailwind 4**, it r
 - **Converter** — Drag-and-drop or `Ctrl + V` file converter for images (`PNG`, `JPG`, `WebP`, `ICO`, `BMP`, `DDS`), documents (`PDF`, `DOCX`, `TXT`, `Markdown`, `HTML`), spreadsheets (`XLSX`, `CSV`, `JSON`), audio/video (with `ffmpeg`), plus an instant unit converter.
 - **Notes** — Local, auto-saving scratchpad.
 - **Weather** — Current conditions and 7-day forecast via Open-Meteo (no API key needed).
+- **Vibe** — Six handcrafted, non-audio-reactive living worlds (**City Lights**, **Golden Valley**, **Night Train**, **Deep Trench**, **Crimson Torii**, **Misty Jungle**) with subtle cursor parallax and 0% CPU when closed.
+- **Persona** — Personal aesthetic card with a wide photo/animated GIF frame (stored on disk in AppData for near-zero idle RAM) and inline-editable name and quote.
 
 ---
 
@@ -39,6 +41,7 @@ Built with **Tauri 2, Rust, React 19, TypeScript, Motion, and Tailwind 4**, it r
 | Action | How |
 | --- | --- |
 | Open or close | Hover, click, or **Ctrl + Alt + Space** |
+| Quick screenshot (Snap) | **Ctrl + Alt + S** (customizable in **Settings → General**) |
 | Switch panels | `←` / `→` arrow keys, `1–9` keys, or the bottom dock |
 | Switch panels while typing | `Alt + ←` / `Alt + →` |
 | Move the notch | Drag it sideways while closed or by its header |

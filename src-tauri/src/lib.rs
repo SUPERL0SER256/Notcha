@@ -48,8 +48,13 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, pressed, event| {
-                    if pressed == &shortcut && event.state() == ShortcutState::Pressed {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if pressed == &shortcut {
                         let _ = app.emit("notch://shortcut", ());
+                    } else if app.state::<SnapShortcutState>().0.lock().unwrap().as_ref() == Some(pressed) {
+                        let _ = app.emit("notch://snap", ());
                     }
                 })
                 .build(),
@@ -59,6 +64,7 @@ pub fn run() {
         .manage(mixer::MixerState::default())
         .manage(clipboard::ClipboardState::default())
         .manage(FocusState::default())
+        .manage(SnapShortcutState::default())
         .manage(TrayItems::default())
         .manage(audio::AudioState::default())
         .manage(ai::AiState::default())
@@ -107,8 +113,11 @@ pub fn run() {
             snap::snap_from_clipboard,
             snap::snap_copy,
             snap::snap_save,
+            snap::persona_image_save,
+            snap::persona_image_load,
+            snap::persona_image_clear,
+            set_snap_shortcut,
             open_url,
-            set_language,
             autostart_get,
             autostart_set,
         ])
@@ -127,6 +136,11 @@ pub fn run() {
 
             // If another app owns the shortcut, the notch still runs, just without it.
             let _ = app.global_shortcut().register(shortcut);
+            // Register default Snap shortcut right away so it works even before the WebView boots.
+            let default_snap = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyS);
+            if app.global_shortcut().register(default_snap).is_ok() {
+                *app.state::<SnapShortcutState>().0.lock().unwrap() = Some(default_snap);
+            }
             enable_autostart_once(app.handle());
             build_tray(app)?;
             Ok(())
@@ -157,6 +171,34 @@ fn keyboard_focus(focus: bool, window: WebviewWindow, state: State<'_, FocusStat
         let _ = unsafe { SetForegroundWindow(HWND(*previous as *mut _)) };
         *previous = 0;
     }
+}
+
+/// Currently registered global shortcut for Snap (customizable in settings).
+#[derive(Default)]
+struct SnapShortcutState(Mutex<Option<Shortcut>>);
+
+#[tauri::command]
+fn set_snap_shortcut(combo: String, app: AppHandle, state: State<'_, SnapShortcutState>) -> Result<(), String> {
+    let mut current = state.0.lock().unwrap();
+    let trimmed = combo.trim();
+    if trimmed.is_empty() {
+        if let Some(prev) = current.take() {
+            let _ = app.global_shortcut().unregister(prev);
+        }
+        return Ok(());
+    }
+    let parsed: Shortcut = trimmed.parse().map_err(|_| "Ungültiges Tastenkürzel".to_string())?;
+    if current.as_ref() == Some(&parsed) {
+        return Ok(());
+    }
+    if let Some(prev) = current.take() {
+        let _ = app.global_shortcut().unregister(prev);
+    }
+    app.global_shortcut()
+        .register(parsed)
+        .map_err(|_| "Tastenkürzel bereits belegt".to_string())?;
+    *current = Some(parsed);
+    Ok(())
 }
 
 #[tauri::command]
@@ -195,39 +237,13 @@ fn enable_autostart_once(app: &AppHandle) {
     }
 }
 
-/// Tray items whose text or check state changes at runtime.
+/// Tray item whose check state changes at runtime.
 struct Tray {
-    open: MenuItem<tauri::Wry>,
-    settings: MenuItem<tauri::Wry>,
     focus: CheckMenuItem<tauri::Wry>,
-    autostart: CheckMenuItem<tauri::Wry>,
-    quit: MenuItem<tauri::Wry>,
 }
 
 #[derive(Default)]
 struct TrayItems(Mutex<Option<Tray>>);
-
-/// Open (shortcut right-aligned via tab, like Windows menus), settings, focus mode, autostart, quit.
-fn tray_texts(lang: &str) -> [String; 5] {
-    if lang == "en" {
-        let keys = SHORTCUT_LABEL.replace("Strg", "Ctrl").replace("Leertaste", "Space");
-        [format!("Open L4-Notchbar\t{keys}"), "Settings …".into(), "Focus mode".into(), "Start with Windows".into(), "Quit L4-Notchbar".into()]
-    } else {
-        [format!("L4-Notchbar öffnen\t{SHORTCUT_LABEL}"), "Einstellungen …".into(), "Fokus-Modus".into(), "Mit Windows starten".into(), "L4-Notchbar beenden".into()]
-    }
-}
-
-#[tauri::command]
-fn set_language(lang: String, state: State<'_, TrayItems>) {
-    if let Some(tray) = state.0.lock().unwrap().as_ref() {
-        let [a, b, c, d, e] = tray_texts(&lang);
-        let _ = tray.open.set_text(a);
-        let _ = tray.settings.set_text(b);
-        let _ = tray.focus.set_text(c);
-        let _ = tray.autostart.set_text(d);
-        let _ = tray.quit.set_text(e);
-    }
-}
 
 /// The frontend owns focus mode; the tray check only mirrors it.
 #[tauri::command]
@@ -262,20 +278,14 @@ fn dark_menus() {
 fn build_tray(app: &App) -> tauri::Result<()> {
     dark_menus();
     let enabled = app.autolaunch().is_enabled().unwrap_or(false);
-    let [open_text, settings_text, focus_text, autostart_text, quit_text] = tray_texts("de");
-    let open = MenuItem::with_id(app, "open", open_text, true, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", settings_text, true, None::<&str>)?;
+    let keys = SHORTCUT_LABEL.replace("Strg", "Ctrl").replace("Leertaste", "Space");
+    let open = MenuItem::with_id(app, "open", format!("Open Notcha Notcha\t{keys}"), true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings …", true, None::<&str>)?;
     // The real state follows right after start (the frontend calls tray_focus).
-    let focus = CheckMenuItem::with_id(app, "focus", focus_text, true, false, None::<&str>)?;
-    let autostart = CheckMenuItem::with_id(app, "autostart", autostart_text, true, enabled, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", quit_text, true, None::<&str>)?;
-    *app.state::<TrayItems>().0.lock().unwrap() = Some(Tray {
-        open: open.clone(),
-        settings: settings.clone(),
-        focus: focus.clone(),
-        autostart: autostart.clone(),
-        quit: quit.clone(),
-    });
+    let focus = CheckMenuItem::with_id(app, "focus", "Focus mode", true, false, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, enabled, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Notcha Notcha", true, None::<&str>)?;
+    *app.state::<TrayItems>().0.lock().unwrap() = Some(Tray { focus: focus.clone() });
     let menu = Menu::with_items(
         app,
         &[&open, &settings, &PredefinedMenuItem::separator(app)?, &focus, &autostart, &PredefinedMenuItem::separator(app)?, &quit],

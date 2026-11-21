@@ -1,30 +1,24 @@
-import { settings } from "../settings/store";
 import { en } from "./en";
 
 /*
- * Translation: the German text lives directly in the code and doubles as the key;
- * `en.ts` provides the English version. Missing entries stay German.
- * Placeholders: t("vor {n} Min.", { n: 5 }).
- *
- * No hook needed: the notch subscribes to the settings and re-renders the whole tree
- * when the language changes. Send module-level constants (label lists) through t()
- * only at render time, otherwise they stay in the startup language.
+ * Translation: the German text lives in the code as lookup keys; `en.ts` provides
+ * the English UI strings. Placeholders: t("vor {n} Min.", { n: 5 }).
  */
-export type Language = "de" | "en";
+export type Language = "en";
 
 export function lang(): Language {
-  return settings.get().language;
+  return "en";
 }
 
 export function t(de: string, vars?: Record<string, string | number>): string {
-  let s = lang() === "en" ? (en[de] ?? de) : de;
+  let s = en[de] ?? de;
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 }
 
 /** Locale for Intl (numbers, dates, weekdays). */
 export function locale(): string {
-  return lang() === "en" ? "en-GB" : "de-DE";
+  return "en-GB";
 }
 
 /** Error texts from Rust (AI chat, converter) arrive in German; translate them by pattern. */
@@ -62,6 +56,8 @@ const backendPatterns: [RegExp, string][] = [
   [/^Kein Bild in der Zwischenablage$/, "No image in clipboard"],
   [/^Screenshot fehlgeschlagen$/, "Screenshot failed"],
   [/^Snipping Tool startet nicht: (.*)$/s, "Snipping Tool failed to start: $1"],
+  [/^Ungültiges Tastenkürzel$/, "Invalid shortcut"],
+  [/^Tastenkürzel bereits belegt$/, "Shortcut already in use"],
 ];
 
 export function tBackend(msg: string): string {
