@@ -24,9 +24,13 @@ const SYSTEM_PROMPT: &str = "You are Ask, a fast assistant in a small notch at t
 Answer concisely and directly in the same language as the question. Avoid markdown overhead: short paragraphs, lists only when needed.";
 
 #[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Msg {
     role: String,
     content: String,
+    /// Optional base64-encoded PNG screenshot attached to this message (Snap vision).
+    #[serde(default)]
+    image_base64: Option<String>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -106,7 +110,12 @@ pub async fn stream_chat(
             .iter()
             .map(|m| {
                 let role = if m.role == "assistant" { "model" } else { "user" };
-                json!({ "role": role, "parts": [{ "text": m.content }] })
+                let mut parts = Vec::new();
+                if let Some(b64) = &m.image_base64 {
+                    parts.push(json!({ "inline_data": { "mime_type": "image/png", "data": b64 } }));
+                }
+                parts.push(json!({ "text": m.content }));
+                json!({ "role": role, "parts": parts })
             })
             .collect();
         let body = json!({
@@ -141,12 +150,28 @@ pub async fn stream_chat(
             None => return Err(last_err),
         }
     } else if is_anthropic {
+        let msgs: Vec<Value> = messages
+            .iter()
+            .map(|m| {
+                if let Some(b64) = &m.image_base64 {
+                    json!({
+                        "role": m.role,
+                        "content": [
+                            { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": b64 } },
+                            { "type": "text", "text": m.content }
+                        ]
+                    })
+                } else {
+                    json!({ "role": m.role, "content": m.content })
+                }
+            })
+            .collect();
         let body = json!({
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 4096,
             "stream": true,
             "system": SYSTEM_PROMPT,
-            "messages": messages.iter().map(|m| json!({ "role": m.role, "content": m.content })).collect::<Vec<_>>(),
+            "messages": msgs,
         });
         let r = client
             .post("https://api.anthropic.com/v1/messages")
@@ -164,7 +189,19 @@ pub async fn stream_chat(
         r
     } else if provider == "openai" {
         let mut all = vec![json!({ "role": "system", "content": SYSTEM_PROMPT })];
-        all.extend(messages.iter().map(|m| json!({ "role": m.role, "content": m.content })));
+        all.extend(messages.iter().map(|m| {
+            if let Some(b64) = &m.image_base64 {
+                json!({
+                    "role": m.role,
+                    "content": [
+                        { "type": "text", "text": m.content },
+                        { "type": "image_url", "image_url": { "url": format!("data:image/png;base64,{b64}") } }
+                    ]
+                })
+            } else {
+                json!({ "role": m.role, "content": m.content })
+            }
+        }));
         let body = json!({ "model": "gpt-4o", "stream": true, "messages": all });
         let r = client
             .post("https://api.openai.com/v1/chat/completions")

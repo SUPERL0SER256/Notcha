@@ -8,6 +8,7 @@ import { showcase, showcaseAnswer } from "../../dev/showcase-data";
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  imageBase64?: string;
 }
 
 export const providerInfo: Record<AskProvider, { label: string; secret: SecretName }> = {

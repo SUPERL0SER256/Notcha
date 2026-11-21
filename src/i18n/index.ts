@@ -59,6 +59,9 @@ const backendPatterns: [RegExp, string][] = [
   [/^Keine Verbindung$/, "No connection"],
   [/^Keine Verbindung: (.*)$/s, "No connection: $1"],
   [/^Bild konnte nicht gelesen werden$/, "Cannot read image"],
+  [/^Kein Bild in der Zwischenablage$/, "No image in clipboard"],
+  [/^Screenshot fehlgeschlagen$/, "Screenshot failed"],
+  [/^Snipping Tool startet nicht: (.*)$/s, "Snipping Tool failed to start: $1"],
 ];
 
 export function tBackend(msg: string): string {

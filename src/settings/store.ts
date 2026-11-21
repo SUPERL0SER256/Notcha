@@ -49,6 +49,7 @@ export const TOOL_IDS = [
   "media",
   "notes",
   "clipboard",
+  "snap",
   "ask",
   "convert",
   "weather",

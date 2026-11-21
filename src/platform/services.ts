@@ -32,6 +32,43 @@ export function openUrl(url: string) {
   else window.open(url, "_blank", "noopener,noreferrer");
 }
 
+// ---------- Snap (SumoSnap-style screenshots) ----------
+
+export interface SnapResult {
+  dataUrl: string;
+  base64: string;
+  width: number;
+  height: number;
+}
+
+const mockSnapSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2a6b"/><stop offset="1" stop-color="#090d24"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#g)"/>
+  <rect x="64" y="48" width="512" height="264" rx="14" fill="#18181c" stroke="#2d2d36"/>
+  <text x="96" y="112" fill="#e8e8ec" font-family="sans-serif" font-size="22" font-weight="600">Preview Screenshot</text>
+  <text x="96" y="148" fill="#888894" font-family="monospace" font-size="14">Run in Tauri (npm run tauri dev) for live Windows capture.</text>
+</svg>`;
+
+const mockSnap = (): SnapResult => ({
+  dataUrl: `data:image/svg+xml,${encodeURIComponent(mockSnapSvg)}`,
+  base64: "",
+  width: 1920,
+  height: 1080,
+});
+
+export const snap = {
+  captureScreen: (): Promise<SnapResult> =>
+    isNative ? invoke<SnapResult>("snap_capture_screen") : Promise.resolve(mockSnap()),
+  captureRegion: (): Promise<SnapResult | null> =>
+    isNative ? invoke<SnapResult | null>("snap_capture_region") : Promise.resolve(mockSnap()),
+  fromClipboard: (): Promise<SnapResult> =>
+    isNative ? invoke<SnapResult>("snap_from_clipboard") : Promise.resolve(mockSnap()),
+  copy: (base64Png: string): Promise<void> =>
+    isNative ? invoke("snap_copy", { base64Png }) : Promise.resolve(),
+  save: (base64Png: string): Promise<string> =>
+    isNative ? invoke<string>("snap_save", { base64Png }) : Promise.resolve("C:\\Users\\Demo\\Pictures\\NotchaSnap\\snap.png"),
+};
+
 // ---------- System ----------
 
 export interface SystemStats {

@@ -13,6 +13,7 @@ mod memory;
 mod mixer;
 mod privacy;
 pub mod secrets;
+mod snap;
 mod system;
 
 use std::sync::Mutex;
@@ -101,6 +102,11 @@ pub fn run() {
             controls::focus_get,
             controls::focus_set,
             privacy::privacy_state,
+            snap::snap_capture_screen,
+            snap::snap_capture_region,
+            snap::snap_from_clipboard,
+            snap::snap_copy,
+            snap::snap_save,
             open_url,
             set_language,
             autostart_get,
