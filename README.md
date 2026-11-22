@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/assets/logo.png" alt="Notcha" height="44" />
+</p>
+
 <h1 align="center">Notcha</h1>
 
 <p align="center">
