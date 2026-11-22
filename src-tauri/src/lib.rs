@@ -146,7 +146,7 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("failed to start L4-Notchbar");
+        .expect("failed to start Notcha");
 }
 
 /// Window that was in the foreground before the shortcut opened the notch.
@@ -279,12 +279,12 @@ fn build_tray(app: &App) -> tauri::Result<()> {
     dark_menus();
     let enabled = app.autolaunch().is_enabled().unwrap_or(false);
     let keys = SHORTCUT_LABEL.replace("Strg", "Ctrl").replace("Leertaste", "Space");
-    let open = MenuItem::with_id(app, "open", format!("Open Notcha Notcha\t{keys}"), true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", format!("Open Notcha\t{keys}"), true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings …", true, None::<&str>)?;
     // The real state follows right after start (the frontend calls tray_focus).
     let focus = CheckMenuItem::with_id(app, "focus", "Focus mode", true, false, None::<&str>)?;
     let autostart = CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, enabled, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Notcha Notcha", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Notcha", true, None::<&str>)?;
     *app.state::<TrayItems>().0.lock().unwrap() = Some(Tray { focus: focus.clone() });
     let menu = Menu::with_items(
         app,
@@ -295,7 +295,7 @@ fn build_tray(app: &App) -> tauri::Result<()> {
     let focus_item = focus.clone();
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("L4-Notchbar")
+        .tooltip("Notcha")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {

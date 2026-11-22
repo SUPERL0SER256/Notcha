@@ -1,4 +1,4 @@
-<h1 align="center">Notcha Notcha</h1>
+<h1 align="center">Notcha</h1>
 
 <p align="center">
   <b>A sleek, Dynamic-Island-style notch for Windows with built-in AI chat and screenshot vision.</b>
@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-111?style=flat-square" alt="GPL-3.0" /></a>
 </p>
 
-**Notcha Notcha** sits unobtrusively at the top of your Windows screen and expands smoothly on hover, click, or **Ctrl + Alt + Space**. Navigate effortlessly between panels with **Left / Right arrow keys** (`←` / `→`) or number keys (`1–9`).
+**Notcha** sits unobtrusively at the top of your Windows screen and expands smoothly on hover, click, or **Ctrl + Alt + Space**. Navigate effortlessly between panels with **Left / Right arrow keys** (`←` / `→`) or number keys (`1–9`).
 
 Built with **Tauri 2, Rust, React 19, TypeScript, Motion, and Tailwind 4**, it runs natively via WebView2 with a minimal footprint and keeps all your data local on your PC.
 

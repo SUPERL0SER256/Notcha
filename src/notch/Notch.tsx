@@ -21,6 +21,7 @@ import { update } from "../lib/update";
 import { findTab, settingsTab, tabs, type NotchTab } from "./tabs";
 import { holdOpen, pinned, togglePin, useNotchState, type NotchStatus } from "./useNotchState";
 import { t } from "../i18n";
+import notchaLogo from "../assets/logo.png";
 
 /** If the notch was closed at most this long, it reopens on the last used tool. */
 const RESUME_MS = 60_000;
@@ -214,7 +215,7 @@ export function Notch() {
                 animate={{ opacity: 1, transform: "translateY(0px)", filter: "blur(0px)", transition: content.enter }}
                 exit={{ opacity: 0, transform: "translateY(-4px)", filter: "blur(4px)", transition: content.exit }}
               >
-                <Header title={t(tab.label)} onDragStart={drag.onPointerDown} />
+                <Header title={t(tab.label)} showLogo={tab.id === settingsTab.id} onDragStart={drag.onPointerDown} />
                 <div className="relative min-h-0 flex-1 overflow-clip">
                   <AnimatePresence mode="popLayout" initial={false}>
                     <motion.div
@@ -239,23 +240,26 @@ export function Notch() {
 }
 
 /** Header: tool title on the left, actions + pin on the right. The middle (camera) stays free. */
-function Header({ title, onDragStart }: { title: string; onDragStart: (e: React.PointerEvent) => void }) {
+function Header({ title, showLogo, onDragStart }: { title: string; showLogo?: boolean; onDragStart: (e: React.PointerEvent) => void }) {
   const isPinned = pinned.use();
   return (
     // Empty header space = drag handle.
-    <div data-drag-handle onPointerDown={onDragStart} className="flex shrink-0 items-center justify-between gap-3 pr-3 pl-5" style={{ height: HEADER_HEIGHT + 4 }}>
-      <div className="relative min-w-0 flex-1">
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.h2
-            key={title}
-            className="truncate text-title font-semibold"
-            initial={{ opacity: 0, filter: "blur(4px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)", transition: content.enter }}
-            exit={{ opacity: 0, filter: "blur(4px)", transition: content.exit }}
-          >
-            {title}
-          </motion.h2>
-        </AnimatePresence>
+    <div data-drag-handle onPointerDown={onDragStart} className={`flex shrink-0 items-center justify-between gap-3 pr-3 ${showLogo ? "pl-4" : "pl-5"}`} style={{ height: HEADER_HEIGHT + 4 }}>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {showLogo && <img src={notchaLogo} alt="Notcha" draggable={false} className="h-3 w-auto shrink-0 select-none" />}
+        <div className="relative min-w-0 flex-1">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.h2
+              key={title}
+              className="truncate text-title font-semibold"
+              initial={{ opacity: 0, filter: "blur(4px)" }}
+              animate={{ opacity: 1, filter: "blur(0px)", transition: content.enter }}
+              exit={{ opacity: 0, filter: "blur(4px)", transition: content.exit }}
+            >
+              {title}
+            </motion.h2>
+          </AnimatePresence>
+        </div>
       </div>
       <div className="flex items-center gap-1">
         {/* Tools render here via <HeaderActions> (src/notch/header.tsx). The grid stacks old and new during a switch. */}
